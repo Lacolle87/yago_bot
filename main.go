@@ -79,7 +79,12 @@ func sendMessage(message string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+
+		}
+	}(resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("Запрос в API Telegram завершился с кодом статуса: %d", resp.StatusCode)
 	}
@@ -98,7 +103,12 @@ func getAPIAnswer(currentTimestamp int64) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+
+		}
+	}(resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("Запрос к API завершился с кодом статуса: %d", resp.StatusCode)
 	}
