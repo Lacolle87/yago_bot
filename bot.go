@@ -279,6 +279,16 @@ func main() {
 		}
 	}()
 
+	u := tgbotapi.NewUpdate(0)
+	u.Timeout = 60
+
+	updates, err := bot.GetUpdatesChan(u)
+	if err != nil {
+		log.Fatal("Ошибка при получении канала обновлений:", err)
+	}
+
+	go handleUpdates(updates)
+
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
