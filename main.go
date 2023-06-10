@@ -218,19 +218,71 @@ func main() {
 
 	logger.Println("Бот начал работу")
 
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
+	// Запрос к API перед обработкой обновлений
+	go func() {
+		currentTimestamp := time.Now().Unix()
+		response, err := getAPIAnswer(currentTimestamp)
+		if err != nil {
+			logger.Printf("Не удалось получить ответ от API: %v", err)
+			return
+		}
 
-	updates, err := bot.GetUpdatesChan(u)
-	if err != nil {
-		log.Fatal("Ошибка при получении канала обновлений:", err)
-	}
+		currentTimestamp = int64(response["current_date"].(float64))
+		newHomeworks, err := checkResponse(response)
+		if err != nil {
+			logger.Printf("Неверный ответ от API: %v", err)
+			return
+		}
 
-	go handleUpdates(updates)
+		if len(newHomeworks) > 0 {
+			currentReport := newHomeworks[0]
+			message, err := parseStatus(currentReport)
+			if err != nil {
+				return
+			}
+
+			logger.Printf("Результат запроса к API: %s\n", message)
+		} else {
+			logger.Println("Результат запроса к API: Нет новых статусов работ.")
+		}
+	}()
+
+	ticker := time.NewTicker(RetryPeriod)
+
+	go func() {
+		for range ticker.C {
+			currentTimestamp := time.Now().Unix()
+			response, err := getAPIAnswer(currentTimestamp)
+			if err != nil {
+				logger.Printf("Не удалось получить ответ от API: %v", err)
+				continue
+			}
+
+			currentTimestamp = int64(response["current_date"].(float64))
+			newHomeworks, err := checkResponse(response)
+			if err != nil {
+				logger.Printf("Неверный ответ от API: %v", err)
+				continue
+			}
+
+			if len(newHomeworks) > 0 {
+				currentReport := newHomeworks[0]
+				message, err := parseStatus(currentReport)
+				if err != nil {
+					continue
+				}
+
+				logger.Printf("Результат запроса к API: %s\n", message)
+			} else {
+				logger.Println("Результат запроса к API: Нет новых статусов работ.")
+			}
+		}
+	}()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 
 	logger.Println("Бот остановлен")
+	ticker.Stop()
 }
