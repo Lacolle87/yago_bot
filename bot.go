@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"io"
 	"log"
 	"net/http"
@@ -13,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/joho/godotenv"
 )
 
@@ -93,12 +93,7 @@ func getAPIAnswer(currentTimestamp int64) (map[string]interface{}, error) {
 		logger.Printf("Ошибка при выполнении запроса к API: %v", err)
 		return nil, err
 	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			logger.Printf("Ошибка при закрытии тела ответа: %v", err)
-		}
-	}(resp.Body)
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		logger.Printf("Запрос к API завершился с кодом статуса: %d", resp.StatusCode)
 		return nil, fmt.Errorf("Запрос к API завершился с кодом статуса: %d", resp.StatusCode)
@@ -284,14 +279,14 @@ func main() {
 
 	updates, err := bot.GetUpdatesChan(u)
 	if err != nil {
-		log.Fatal("Ошибка при получении канала обновлений:", err)
+		logger.Fatal(err)
 	}
 
 	go handleUpdates(updates)
 
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	<-stop
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
 
 	logger.Println("Бот остановлен")
 	ticker.Stop()
