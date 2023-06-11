@@ -1,1 +1,7 @@
 /.env
+build/.env
+*.exe
+bot.log
+bot
+*.xml
+*.iml
