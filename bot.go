@@ -138,17 +138,18 @@ func checkResponse(response map[string]interface{}) ([]Homework, error) {
 }
 
 func parseStatus(homework Homework) (string, error) {
-	verdict, ok := HomeworkVerdict[homework.Status]
-	if !ok {
-		if homework.Status == "Нет новых статусов работ." {
-			logger.Println(homework.Status)
-			return homework.Status, nil
-		}
-		errMsg := fmt.Sprintf("Неизвестный статус домашней работы: %s", homework.Status)
+	homeworkName := homework.Name
+	homeworkStatus := homework.Status
+
+	switch homeworkStatus {
+	case ApprovedStatus, ReviewingStatus, RejectedStatus:
+		verdict := HomeworkVerdict[homeworkStatus]
+		return fmt.Sprintf(`Изменился статус проверки работы "%s": %s`, homeworkName, verdict), nil
+	default:
+		errMsg := fmt.Sprintf("Неизвестный статус домашней работы: %s", homeworkStatus)
 		logger.Printf("Ошибка при разборе статуса домашней работы: %s", errMsg)
 		return "", errors.New(errMsg)
 	}
-	return fmt.Sprintf(`Изменился статус проверки работы "%s": %s`, homework.Name, verdict), nil
 }
 
 func handleCommand(msg *tgbotapi.Message) {
@@ -204,6 +205,36 @@ func handleUpdates(updates tgbotapi.UpdatesChannel) {
 	}
 }
 
+func fetchAPIResponse() ([]Homework, error) {
+	currentTimestamp := time.Now().Unix()
+	response, err := getAPIAnswer(currentTimestamp)
+	if err != nil {
+		logger.Printf("Не удалось получить ответ от API: %v", err)
+		return nil, err
+	}
+
+	currentTimestamp = int64(response["current_date"].(float64))
+	newHomeworks, err := checkResponse(response)
+	logger.Println(newHomeworks)
+	if err != nil {
+		logger.Printf("Неверный ответ от API: %v", err)
+		return nil, err
+	}
+
+	if len(newHomeworks) > 0 {
+		currentReport := newHomeworks[0]
+		message, err := parseStatus(currentReport)
+		if err != nil {
+			return nil, err
+		}
+		logger.Printf("Результат запроса к API: %s\n", message)
+	} else {
+		logger.Println("Результат запроса к API: Нет новых статусов работ.")
+	}
+
+	return newHomeworks, nil
+}
+
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -215,30 +246,9 @@ func main() {
 
 	// Запрос к API перед обработкой обновлений
 	go func() {
-		currentTimestamp := time.Now().Unix()
-		response, err := getAPIAnswer(currentTimestamp)
+		_, err := fetchAPIResponse()
 		if err != nil {
-			logger.Printf("Не удалось получить ответ от API: %v", err)
 			return
-		}
-
-		currentTimestamp = int64(response["current_date"].(float64))
-		newHomeworks, err := checkResponse(response)
-		if err != nil {
-			logger.Printf("Неверный ответ от API: %v", err)
-			return
-		}
-
-		if len(newHomeworks) > 0 {
-			currentReport := newHomeworks[0]
-			message, err := parseStatus(currentReport)
-			if err != nil {
-				return
-			}
-
-			logger.Printf("Результат запроса к API: %s\n", message)
-		} else {
-			logger.Println("Результат запроса к API: Нет новых статусов работ.")
 		}
 	}()
 
@@ -246,30 +256,9 @@ func main() {
 
 	go func() {
 		for range ticker.C {
-			currentTimestamp := time.Now().Unix()
-			response, err := getAPIAnswer(currentTimestamp)
+			_, err := fetchAPIResponse()
 			if err != nil {
-				logger.Printf("Не удалось получить ответ от API: %v", err)
 				continue
-			}
-
-			currentTimestamp = int64(response["current_date"].(float64))
-			newHomeworks, err := checkResponse(response)
-			if err != nil {
-				logger.Printf("Неверный ответ от API: %v", err)
-				continue
-			}
-
-			if len(newHomeworks) > 0 {
-				currentReport := newHomeworks[0]
-				message, err := parseStatus(currentReport)
-				if err != nil {
-					continue
-				}
-
-				logger.Printf("Результат запроса к API: %s\n", message)
-			} else {
-				logger.Println("Результат запроса к API: Нет новых статусов работ.")
 			}
 		}
 	}()
