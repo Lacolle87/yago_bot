@@ -167,8 +167,7 @@ func parseStatus(homework Homework) (string, error) {
 	case ApprovedStatus, ReviewingStatus, RejectedStatus:
 		verdict := HomeworkVerdict[homeworkStatus]
 
-		message := fmt.Sprintf(`Изменился статус проверки работы "%s" для урока "%s":
-Статус: %s
+		message := fmt.Sprintf(`Изменился статус проверки работы "%s" для урока "%s": %s
 Комментарий ревьюера: %s`, homeworkName, homeworkLessonName, verdict, homeworkReviewerComment)
 		return message, nil
 	default:
