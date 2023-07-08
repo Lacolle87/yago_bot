@@ -81,30 +81,39 @@ func sendMessage(chatID int64, message string) error {
 }
 
 func getAPIAnswer(currentTimestamp int64) (map[string]interface{}, error) {
-	client := &http.Client{}
-	url := fmt.Sprintf("%s?from_date=%d", Endpoint, currentTimestamp)
+	timestamp := currentTimestamp - 86400
+	if currentTimestamp == 0 {
+		timestamp = time.Now().Unix()
+	}
+
+	url := fmt.Sprintf("%s?from_date=%d", Endpoint, timestamp)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("OAuth %s", PracticumToken))
+
+	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		logger.Printf("Ошибка при выполнении запроса к API: %v", err)
+		log.Printf("Ошибка при выполнении запроса к API: %v", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
-		logger.Printf("Запрос к API завершился с кодом статуса: %d", resp.StatusCode)
+		log.Printf("Запрос к API завершился с кодом статуса: %d", resp.StatusCode)
 		return nil, fmt.Errorf("Запрос к API завершился с кодом статуса: %d", resp.StatusCode)
 	}
+
 	var data map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&data)
 	if err != nil {
-		logger.Printf("Ошибка при декодировании ответа от API: %v", err)
+		log.Printf("Ошибка при декодировании ответа от API: %v", err)
 		return nil, err
 	}
-	logger.Println("Успешно получен ответ от API")
+
+	log.Println("Успешно получен ответ от API")
 	return data, nil
 }
 
