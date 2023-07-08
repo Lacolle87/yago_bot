@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -28,14 +29,17 @@ var (
 	PracticumToken  string
 	TelegramToken   string
 	TelegramChatID  string
+	lastSentMessage string
 	HomeworkVerdict map[string]string
 	logger          *log.Logger
 	bot             *tgbotapi.BotAPI
 )
 
 type Homework struct {
-	Name   string `json:"homework_name"`
-	Status string `json:"status"`
+	Name            string `json:"homework_name"`
+	Status          string `json:"status"`
+	ReviewerComment string `json:"reviewer_comment"`
+	LessonName      string `json:"lesson_name"`
 }
 
 func init() {
@@ -70,7 +74,6 @@ func init() {
 	if err != nil {
 		log.Fatal("Ошибка при создании экземпляра бота:", err)
 	}
-	//bot.Debug = true
 	logger.Printf("Авторизован как @%s", bot.Self.UserName)
 }
 
@@ -81,7 +84,7 @@ func sendMessage(chatID int64, message string) error {
 }
 
 func getAPIAnswer(currentTimestamp int64) (map[string]interface{}, error) {
-	timestamp := currentTimestamp - 86400
+	timestamp := currentTimestamp - 3600
 	if currentTimestamp == 0 {
 		timestamp = time.Now().Unix()
 	}
@@ -140,7 +143,15 @@ func checkResponse(response map[string]interface{}) ([]Homework, error) {
 			return nil, errors.New("Неверный формат ответа: поле 'status' не является строкой")
 		}
 
-		homeworks[i] = Homework{Name: hwName, Status: hwStatus}
+		hwReviewerComment, _ := hwMap["reviewer_comment"].(string)
+		hwLessonName, _ := hwMap["lesson_name"].(string)
+
+		homeworks[i] = Homework{
+			Name:            hwName,
+			Status:          hwStatus,
+			ReviewerComment: hwReviewerComment,
+			LessonName:      hwLessonName,
+		}
 	}
 
 	return homeworks, nil
@@ -149,11 +160,17 @@ func checkResponse(response map[string]interface{}) ([]Homework, error) {
 func parseStatus(homework Homework) (string, error) {
 	homeworkName := homework.Name
 	homeworkStatus := homework.Status
+	homeworkReviewerComment := homework.ReviewerComment
+	homeworkLessonName := homework.LessonName
 
 	switch homeworkStatus {
 	case ApprovedStatus, ReviewingStatus, RejectedStatus:
 		verdict := HomeworkVerdict[homeworkStatus]
-		return fmt.Sprintf(`Изменился статус проверки работы "%s": %s`, homeworkName, verdict), nil
+
+		message := fmt.Sprintf(`Изменился статус проверки работы "%s" для урока "%s":
+Статус: %s
+Комментарий ревьюера: %s`, homeworkName, homeworkLessonName, verdict, homeworkReviewerComment)
+		return message, nil
 	default:
 		errMsg := fmt.Sprintf("Неизвестный статус домашней работы: %s", homeworkStatus)
 		logger.Printf("Ошибка при разборе статуса домашней работы: %s", errMsg)
@@ -224,7 +241,6 @@ func fetchAPIResponse() ([]Homework, error) {
 
 	currentTimestamp = int64(response["current_date"].(float64))
 	newHomeworks, err := checkResponse(response)
-	logger.Println(newHomeworks)
 	if err != nil {
 		logger.Printf("Неверный ответ от API: %v", err)
 		return nil, err
@@ -236,7 +252,24 @@ func fetchAPIResponse() ([]Homework, error) {
 		if err != nil {
 			return nil, err
 		}
-		logger.Printf("Результат запроса к API: %s\n", message)
+
+		// Проверка, было ли отправлено сообщение с таким же статусом ранее
+		if message != lastSentMessage {
+			// Отправить сообщение в Telegram
+			chatID, err := strconv.ParseInt(TelegramChatID, 10, 64)
+			if err != nil {
+				logger.Printf("Ошибка при преобразовании TelegramChatID в int64: %v", err)
+				return nil, err
+			}
+
+			err = sendMessage(chatID, message)
+			if err != nil {
+				logger.Printf("Ошибка при отправке сообщения в Telegram: %v", err)
+			} else {
+				logger.Printf("Сообщение отправлено в Telegram: %s", message)
+				lastSentMessage = message // Обновление последнего отправленного сообщения
+			}
+		}
 	} else {
 		logger.Println("Результат запроса к API: Нет новых статусов работ.")
 	}
