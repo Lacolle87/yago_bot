@@ -19,7 +19,7 @@ import (
 
 const (
 	Endpoint        = "https://practicum.yandex.ru/api/user_api/homework_statuses/"
-	RetryPeriod     = 100 * time.Second
+	RetryPeriod     = 600 * time.Second
 	ApprovedStatus  = "approved"
 	ReviewingStatus = "reviewing"
 	RejectedStatus  = "rejected"
