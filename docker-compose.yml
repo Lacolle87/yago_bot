@@ -1,0 +1,10 @@
+version: '3'
+services:
+  bot:
+    image: lacolle87/yago_bot:1.0
+    container_name: yago-bot-container
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    restart: always

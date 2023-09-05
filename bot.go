@@ -19,7 +19,7 @@ import (
 
 const (
 	Endpoint        = "https://practicum.yandex.ru/api/user_api/homework_statuses/"
-	RetryPeriod     = 600 * time.Second
+	RetryPeriod     = 100 * time.Second
 	ApprovedStatus  = "approved"
 	ReviewingStatus = "reviewing"
 	RejectedStatus  = "rejected"
@@ -62,7 +62,7 @@ func init() {
 		RejectedStatus:  "Работа проверена: у ревьюера есть замечания.",
 	}
 
-	logFile, err := os.OpenFile("bot.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	logFile, err := os.OpenFile("logs/bot.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatal("Ошибка при открытии файла журнала:", err)
 	}
@@ -106,7 +106,7 @@ func getAPIAnswer(currentTimestamp int64) (map[string]interface{}, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("Запрос к API завершился с кодом статуса: %d", resp.StatusCode)
-		return nil, fmt.Errorf("Запрос к API завершился с кодом статуса: %d", resp.StatusCode)
+		return nil, fmt.Errorf("запрос к API завершился с кодом статуса: %d", resp.StatusCode)
 	}
 
 	var data map[string]interface{}
@@ -123,24 +123,24 @@ func getAPIAnswer(currentTimestamp int64) (map[string]interface{}, error) {
 func checkResponse(response map[string]interface{}) ([]Homework, error) {
 	homeworksJSON, ok := response["homeworks"].([]interface{})
 	if !ok {
-		return nil, errors.New("Неверный формат ответа: поле 'homeworks' не является списком")
+		return nil, errors.New("неверный формат ответа: поле 'homeworks' не является списком")
 	}
 
 	homeworks := make([]Homework, len(homeworksJSON))
 	for i, hwJSON := range homeworksJSON {
 		hwMap, ok := hwJSON.(map[string]interface{})
 		if !ok {
-			return nil, errors.New("Неверный формат ответа: элемент 'homework' не является словарем")
+			return nil, errors.New("неверный формат ответа: элемент 'homework' не является словарем")
 		}
 
 		hwName, ok := hwMap["homework_name"].(string)
 		if !ok {
-			return nil, errors.New("Неверный формат ответа: поле 'homework_name' не является строкой")
+			return nil, errors.New("неверный формат ответа: поле 'homework_name' не является строкой")
 		}
 
 		hwStatus, ok := hwMap["status"].(string)
 		if !ok {
-			return nil, errors.New("Неверный формат ответа: поле 'status' не является строкой")
+			return nil, errors.New("неверный формат ответа: поле 'status' не является строкой")
 		}
 
 		hwReviewerComment, _ := hwMap["reviewer_comment"].(string)
