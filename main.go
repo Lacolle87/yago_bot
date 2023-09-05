@@ -102,7 +102,12 @@ func getAPIAnswer(currentTimestamp int64) (map[string]interface{}, error) {
 		log.Printf("Ошибка при выполнении запроса к API: %v", err)
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			logger.Printf("Ошибка при закрытии тела ответа: %v", err)
+		}
+	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("Запрос к API завершился с кодом статуса: %d", resp.StatusCode)
@@ -180,7 +185,10 @@ func parseStatus(homework Homework) (string, error) {
 func handleCommand(msg *tgbotapi.Message) {
 	switch msg.Command() {
 	case "start":
-		sendMessage(msg.Chat.ID, "Привет! Я бот, который отслеживает статус проверки домашних работ.")
+		err := sendMessage(msg.Chat.ID, "Привет! Я бот, который отслеживает статус проверки домашних работ.")
+		if err != nil {
+			return
+		}
 		logger.Printf("Получена команда /start от пользователя с ID %d\n", msg.From.ID)
 	case "status":
 		go func() {
@@ -188,7 +196,10 @@ func handleCommand(msg *tgbotapi.Message) {
 			response, err := getAPIAnswer(currentTimestamp)
 			if err != nil {
 				logger.Printf("Не удалось получить ответ от API: %v", err)
-				sendMessage(msg.Chat.ID, "Не удалось получить статус домашних работ.")
+				err := sendMessage(msg.Chat.ID, "Не удалось получить статус домашних работ.")
+				if err != nil {
+					return
+				}
 				return
 			}
 
@@ -196,7 +207,10 @@ func handleCommand(msg *tgbotapi.Message) {
 			newHomeworks, err := checkResponse(response)
 			if err != nil {
 				logger.Printf("Неверный ответ от API: %v", err)
-				sendMessage(msg.Chat.ID, "Не удалось получить статус домашних работ.")
+				err := sendMessage(msg.Chat.ID, "Не удалось получить статус домашних работ.")
+				if err != nil {
+					return
+				}
 				return
 			}
 
@@ -204,15 +218,25 @@ func handleCommand(msg *tgbotapi.Message) {
 				currentReport := newHomeworks[0]
 				message, err := parseStatus(currentReport)
 				if err != nil {
-					sendMessage(msg.Chat.ID, "Не удалось получить статус домашних работ.")
+					logger.Printf("Не удалось получить статус домашних работ: %v", err)
+					err := sendMessage(msg.Chat.ID, "Не удалось получить статус домашних работ.")
+					if err != nil {
+						return
+					}
 					return
 				}
 
-				sendMessage(msg.Chat.ID, message)
+				err = sendMessage(msg.Chat.ID, message)
+				if err != nil {
+					return
+				}
 				logger.Printf("Получена команда /status от пользователя с ID %d\n", msg.From.ID)
 				logger.Printf("Результат запроса к API: %s\n", message)
 			} else {
-				sendMessage(msg.Chat.ID, "Нет новых статусов работ.")
+				err := sendMessage(msg.Chat.ID, "Нет новых статусов работ.")
+				if err != nil {
+					return
+				}
 				logger.Printf("Получена команда /status от пользователя с ID %d\n", msg.From.ID)
 				logger.Println("Результат запроса к API: Нет новых статусов работ.")
 			}
